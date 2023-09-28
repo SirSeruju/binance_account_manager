@@ -7,15 +7,22 @@ import os
 import sys
 import threading
 import datetime
+import collections
+import traceback
 
 import config
 from core import BinanceCore
+
+
+Error = collections.namedtuple("Error", ["title", "message"])
 
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         uic.loadUi(os.path.join(os.path.dirname(__file__), "main.ui"), self)
+        self.setWindowTitle("Binance Helper")
+        self.show()
 
         # API
         self._binance_core = BinanceCore(
@@ -57,6 +64,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.orderbooks_whitelist_btn.clicked.connect(
             lambda: self._set_orderbooks_list(is_whitelist=True)
         )
+
+        self._errors = []
 
         fps = 60
         self.timer = QTimer(self)
@@ -131,20 +140,42 @@ class MainWindow(QtWidgets.QMainWindow):
             f"{self._orderbooks_progress[0]}/{self._orderbooks_progress[1]}"
         )
 
+        # ERRORS
+        for error in self._errors:
+            dlg = QtWidgets.QMessageBox(self)
+            dlg.setWindowTitle(error.title)
+            dlg.setText(error.message)
+            dlg.exec()
+        self._errors = []
+
     def _update_leverages(self):
         self.update_leverages_btn.setEnabled(False)
         self.update_leverages_btn.setText("Wait...")
         f = None
 
         def f():
-            info = self._binance_core.futures_exchange_info()
+            try:
+                info = self._binance_core.futures_exchange_info()
+            except Exception:
+                self._errors.append(Error(
+                    "Error",
+                    "Error while updating leverages:\n" + traceback.format_exc()
+                ))
+                return
             trading_symbols = list(map(
                 lambda x: x["symbol"], filter(
                     lambda x: x["status"] == "TRADING", # noqa
                     info["symbols"]
                 )
             ))
-            leverage_brackets = self._binance_core.futures_leverage_bracket()
+            try:
+                leverage_brackets = self._binance_core.futures_leverage_bracket()
+            except Exception:
+                self._errors.append(Error(
+                    "Error",
+                    "Error while updating leverages:\n" + traceback.format_exc()
+                ))
+                return
             leverage_brackets = list(filter(
                 lambda x: x["symbol"][-4:] == "USDT", leverage_brackets
             ))
@@ -169,7 +200,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.update_orderbooks_btn.setText("Wait...")
 
         def os_t():
-            info = self._binance_core.futures_exchange_info()
+            try:
+                info = self._binance_core.futures_exchange_info()
+            except Exception:
+                self._errors.append(Error(
+                    "Error",
+                    "Error while updating orderbooks:\n" + traceback.format_exc()
+                ))
+                return
             symbols = info["symbols"]
             symbols = list(filter(
                 lambda x: all([
@@ -193,7 +231,12 @@ class MainWindow(QtWidgets.QMainWindow):
                     i += 1
                     self._orderbooks_progress = (i, len(symbols))
             except Exception:
+                self._errors.append(Error(
+                    "Error",
+                    "Error while updating orderbooks:\n" + traceback.format_exc()
+                ))
                 self._orderbooks_progress = (0, 0)
+                return
 
             self._orderbooks = orderbooks
             self._orderbooks_last_updated_time = datetime.datetime.now()
