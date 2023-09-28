@@ -1,0 +1,3 @@
+python-binance==1.0.17
+PyQt5==5.15.9
+pyInstaller==5.10.1
