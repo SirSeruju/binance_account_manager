@@ -268,7 +268,7 @@ class MainWindow(QtWidgets.QMainWindow):
             )))
             asks_k = asks_qty * asks_min / 1000
             bids_k = bids_qty * bids_max / 1000
-            if all([
+            if is_whitelist and all([
                 any([
                     self.orderbooks_upper_check_box.isChecked() and asks_k >= self.orderbooks_upper_volume.value(), # noqa
                     not self.orderbooks_upper_check_box.isChecked()
@@ -279,9 +279,18 @@ class MainWindow(QtWidgets.QMainWindow):
                 ]),
             ]):
                 symbols.append(symbol)
-            if not is_whitelist:
-                all_symbols = list(map(lambda x: x["symbol"], self._orderbooks))
-                symbols = sorted(list(set(all_symbols) - set(symbols)))
+
+            if not is_whitelist and not all([
+                any([
+                    self.orderbooks_upper_check_box.isChecked() and asks_k >= self.orderbooks_upper_volume.value(), # noqa
+                    not self.orderbooks_upper_check_box.isChecked()
+                ]),
+                any([
+                    self.orderbooks_bottom_check_box.isChecked() and bids_k >= self.orderbooks_bottom_volume.value(), # noqa
+                    not self.orderbooks_bottom_check_box.isChecked()
+                ]),
+            ]):
+                symbols.append(symbol)
 
         symbols = list(map(lambda x: x[:-4], symbols))
         if len(symbols):
