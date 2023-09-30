@@ -20,6 +20,8 @@ class BinanceCore:
         self._update_thread.daemon = True
         self._update_thread.start()
 
+        self._prev_api_load = (0, self._info["rateLimits"][0]["limit"])
+
         def factory(name):
             def f(*args, **kwargs):
                 self._wait_reset()
@@ -38,7 +40,11 @@ class BinanceCore:
         w = 0
         if self._client.response:
             w = int(self._client.response.headers["x-mbx-used-weight-1m"])
-        return (w, int(self._info["rateLimits"][0]["limit"]))
+        if w == 0:
+            return self._prev_api_load
+        else:
+            self._prev_api_load = (w, int(self._info["rateLimits"][0]["limit"]))
+            return self._prev_api_load
 
     def _wait_reset(self):
         c = self._client
